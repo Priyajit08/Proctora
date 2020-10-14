@@ -1,0 +1,92 @@
+# Deploy to Azure Kubernetes Service
+# Build and push image to Azure Container Registry; Deploy to Azure Kubernetes Service
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+- master
+
+resources:
+- repo: self
+
+variables:
+
+  # Container registry service connection established during pipeline creation
+  dockerRegistryServiceConnection: 'ca75fdbb-8547-4b64-a58b-97fb528de1bc'
+  imageRepository: 'backend'
+  containerRegistry: 'trailcontainerregistry.azurecr.io'
+  dockerfilePath: '**/Dockerfile'
+  tag: '$(Build.BuildId)'
+  imagePullSecret: 'trailcontainerregistry18146236-auth'
+  projectid: $(project_id)
+  privatekeyid: $(private_key_id)
+  privatekey : $(private_key)
+  clientemail: $(client_email)
+  clientid: $(client_id)
+  clientx509certurl: $(client_x509_cert_url)
+  # Agent VM image name
+  vmImageName: 'ubuntu-latest'
+  
+
+stages:
+- stage: Build
+  displayName: Build stage
+  jobs:  
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: Docker@2
+      displayName: Build and push an image to container registry
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+        
+    - upload: manifests
+      artifact: manifests
+
+- stage: Deploy
+  displayName: Deploy stage
+  dependsOn: Build
+
+  jobs:
+  - deployment: Deploy
+    displayName: Deploy
+    pool:
+      vmImage: $(vmImageName)
+    environment: 'backend.default'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: KubernetesManifest@0
+            displayName: Create imagePullSecret
+            inputs:
+              action: createSecret
+              secretName: $(imagePullSecret)
+              dockerRegistryEndpoint: $(dockerRegistryServiceConnection)
+          - task: qetza.replacetokens.replacetokens-task.replacetokens@3
+            displayName: Replace tokens in **/*
+            inputs:
+              rootDirectory: $(Pipeline.Workspace)/manifests
+              targetFiles: 'deployment.yml'
+              keepToken: false
+              tokenPrefix: __
+              tokenSuffix: __ 
+              enableTelemetry: false
+          - task: KubernetesManifest@0
+            displayName: Deploy to Kubernetes cluster
+            inputs:
+              action: deploy
+              manifests: |
+                $(Pipeline.Workspace)/manifests/deployment.yml
+                $(Pipeline.Workspace)/manifests/service.yml
+              imagePullSecrets: |
+                $(imagePullSecret)
+              containers: |
+                $(containerRegistry)/$(imageRepository):$(tag)
+
