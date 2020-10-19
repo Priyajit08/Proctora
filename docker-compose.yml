@@ -11,3 +11,10 @@ services:
       - "80:80"
     depends_on:
       - webappapi
+      
+Device: Emulated Desktop
+User agent: (host) Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like
+Gecko) Chrome/86.0.4240.75 Safari/537.36
+User agent (network): Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML,
+like Gecko) Chrome/84.0.4143.7 Safari/537.36 Chrome-Lighthouse
+CPU/Memory Power: 948
